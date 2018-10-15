@@ -5,9 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.SharePoint.Client;
 using System.Data;
-using DocumentFormat.OpenXml.Spreadsheet;
-using DocumentFormat.OpenXml.Packaging;
-using Microsoft.SharePoint.Client.Utilities;
 using Excel = Microsoft.Office.Interop.Excel;
 
 
@@ -15,19 +12,23 @@ namespace UploadFile
 {
     class Program
     {
+
         static void Main(string[] args)
         {
             Console.WriteLine("Enter your password.");
             Credentials crd = new Credentials();
+            StaticFields stfld = new StaticFields();
 
             using (var clientContext = new ClientContext("https://acuvatehyd.sharepoint.com/teams/ExampleGratia"))
             {
-                clientContext.Credentials = new SharePointOnlineCredentials(crd.userName, crd.password);
+                clientContext.Credentials = new SharePointOnlineCredentials(stfld.userName, crd.password);
 
 
                 //GetFile(clientContext);
                 //AddFiles(clientContext);
                 //ReadExcelData(clientContext, "SharePointUploadList.xlsx");
+               // ADDFile(clientContext);
+
                 GetExcelFile(clientContext);
                 ReadData(clientContext);
                 UploadExcelSheet(clientContext);
@@ -36,47 +37,83 @@ namespace UploadFile
             }
         }
 
-       
-        public static void ReadData(ClientContext cxt)
-        {           
+        public static int GetItemId(ClientContext cxt, string ItemName)
+        {
+            StaticFields stfld = new StaticFields();
 
-            
+            List list = cxt.Web.Lists.GetByTitle(stfld.ExcelDocLibName);
+            CamlQuery camlQuery = new CamlQuery();
+            camlQuery.ViewXml = "<View><Query><Where><Eq><FieldRef Name='FileLeafRef' /><Value Type='Text'>" + ItemName + "</Value></Eq></Where></Query></View>";
+            ListItemCollection items = list.GetItems(camlQuery);
+            cxt.Load(items);
+            cxt.ExecuteQuery();
+
+            int ItemID = items[0].Id;
+            return ItemID;
+           // Console.WriteLine("item id of " + title + " is  " + itemid);
+        }
+        public static void GetExcelFile(ClientContext cxt)
+        {
+            StaticFields stfld = new StaticFields();
+
+            var list = cxt.Web.Lists.GetByTitle(stfld.ExcelDocLibName);
+            int DocID = GetItemId(cxt, stfld.ExcelFileName);
+            var listItem = list.GetItemById(DocID);
+            cxt.Load(list);
+            cxt.Load(listItem, i => i.File);
+            cxt.ExecuteQuery();
+
+            var fileRef = listItem.File.ServerRelativeUrl;
+            var fileInfo = Microsoft.SharePoint.Client.File.OpenBinaryDirect(cxt, fileRef);
+            var fileName = System.IO.Path.Combine(stfld.LocalDestinationFolder, stfld.ExcelFileName);// (string)listItem.File.Name);
+            using (var fileStream = System.IO.File.Create(fileName))
+            {
+                fileInfo.Stream.CopyTo(fileStream);
+            }
+
+        }
+
+        public static void ReadData(ClientContext cxt)
+        {
+            StaticFields stfld = new StaticFields();
+
             Excel.Application xlApp;
             Excel.Workbook xlWorkBook;
             Excel.Worksheet xlWorkSheet;
             Excel.Range range;
-           
+
 
             xlApp = new Excel.Application();
-            xlWorkBook = xlApp.Workbooks.Open(@"D:\SPAssessment\SharePointUploadList.xlsx");
+            var LocalFilePath = System.IO.Path.Combine(stfld.LocalDestinationFolder, stfld.ExcelFileName);
+            xlWorkBook = xlApp.Workbooks.Open(LocalFilePath);//@"D:\SPAssessment\SharePointUploadList.xlsx");
             xlWorkSheet = (Excel.Worksheet)xlWorkBook.Worksheets.get_Item(1);
             //int lastrow = xlWorkSheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell).Row;
-          
+
             range = xlWorkSheet.UsedRange;
-            string Reason ;
+            string Reason;
             string UploadStatus;
             for (int row = 2; row < 6; row++)
             {
-                
-                    string FilePath=(range.Cells[row, 1] as Excel.Range).Value2;
+
+                string FilePath = (range.Cells[row, 1] as Excel.Range).Value2;
                 string status = (range.Cells[row, 2] as Excel.Range).Value2;
                 string CreatedBy = (range.Cells[row, 3] as Excel.Range).Value2;
-                AddFilesFromExcel(cxt,FilePath,CreatedBy,status, out Reason);
+                AddFilesFromExcel(cxt, FilePath, CreatedBy, status, out Reason);
                 UploadStatus = String.IsNullOrEmpty(Reason) ? "Uploaded" : "Failed";
                 range.Cells[row, 4] = UploadStatus;
                 range.Cells[row, 5] = Reason;
             }
-          
-            
+
+
             xlWorkBook.Save();
             xlWorkBook.Close();
             xlApp.Quit();
-           
+
 
         }
-        public static string AddFilesFromExcel(ClientContext cxt,string FilepathString, string CreatedBy,string Status,out string Reason)
+        public static string AddFilesFromExcel(ClientContext cxt, string FilepathString, string CreatedBy, string Status, out string Reason)
         {
-            
+            StaticFields stfld = new StaticFields();
 
             string[] farr = FilepathString.Split('/');
             //string FilepathString = row[datacolumn].ToString();
@@ -87,19 +124,19 @@ namespace UploadFile
             System.IO.FileInfo fileInfo = new System.IO.FileInfo(FilepathString);
 
             long filesize = fileInfo.Length;
-           
+
             if (filesize < 15000)
             {
                 try
                 {
-                    List l = cxt.Web.Lists.GetByTitle("LokeshPractice");
+                    List l = cxt.Web.Lists.GetByTitle(stfld.FilesUploadToDocLib); 
 
 
 
-                    FileCreationInformation fileToUpload = new FileCreationInformation();
+                     FileCreationInformation fileToUpload = new FileCreationInformation();
                     fileToUpload.Content = System.IO.File.ReadAllBytes(FilepathString);
                     fileToUpload.Overwrite = true;
-                    fileToUpload.Url = "LokeshPractice/" + FileNameForURL;
+                    fileToUpload.Url = stfld.FilesUploadToDocLib + "/" + FileNameForURL;
 
 
 
@@ -111,8 +148,9 @@ namespace UploadFile
                     ListItem fileitem = uploadfile.ListItemAllFields;
                     fileitem["Title"] = FileNameForURL;
                     fileitem["Multiselectcheck"] = farr;
-                    fileitem["File_x0020_Type"] = fileInfo.Extension;
+                    fileitem["FileType"] = fileInfo.Extension;
                     fileitem["CreatedBy"] = CreatedBy;
+                    //fileitem["Dept"] = "HR";
                     fileitem.Update();
                     // cxt.Load(item);
 
@@ -122,25 +160,27 @@ namespace UploadFile
                     Reason = "";
                     return Reason;
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     return Reason = ex.Message;
                 }
             }
             else
             {
-               return Reason=FileNameForURL + " file size exceed";
+                return Reason = FileNameForURL + " file size exceed";
             }
 
 
         }
         public static void UploadExcelSheet(ClientContext cxt)
         {
-            List DestList = cxt.Web.Lists.GetByTitle("LokeshPractice");
+            StaticFields stfld = new StaticFields();
+
+            List DestList = cxt.Web.Lists.GetByTitle(stfld.ExcelDocLibName);
             FileCreationInformation Fci = new FileCreationInformation();
-            Fci.Content= System.IO.File.ReadAllBytes(@"D:\SPAssessment\SharePointUploadList.xlsx");
+            Fci.Content = System.IO.File.ReadAllBytes(stfld.LocalDestinationFolder+"/"+stfld.ExcelFileName);
             Fci.Overwrite = true;
-            Fci.Url= "LokeshPractice/SharePointUploadList.xlsx";
+            Fci.Url =stfld.ExcelDocLibName+"/"+stfld.ExcelFileName ;//"LokeshPractice/SharePointUploadList.xlsx";
 
             File uploadfile = DestList.RootFolder.Files.Add(Fci);
             uploadfile.Update();
@@ -148,24 +188,26 @@ namespace UploadFile
 
 
         }
-        public static void GetExcelFile(ClientContext cxt)
+
+        public static void ADDFile(ClientContext cxt)
         {
+            var pathstring = @"D:/SPAssessment/SharePointUploadList.xlsx";
+            List l = cxt.Web.Lists.GetByTitle("LokeshPractice");
+           
+            FileCreationInformation fileToUpload = new FileCreationInformation();
+            fileToUpload.Content = System.IO.File.ReadAllBytes(pathstring);
+            fileToUpload.Url = "LokeshPractice/SharePointUploadList.xlsx";
+
+            
+            Microsoft.SharePoint.Client.File uploadfile = l.RootFolder.Files.Add(fileToUpload);
 
 
-            var list = cxt.Web.Lists.GetByTitle("LokeshPractice");
-            var listItem = list.GetItemById(14);
-            cxt.Load(list);
-            cxt.Load(listItem, i => i.File);
+            ListItem item = uploadfile.ListItemAllFields;
+            item["Title"] = "File generated using Code";
+            
+            item.Update();
+           
             cxt.ExecuteQuery();
-
-            var fileRef = listItem.File.ServerRelativeUrl;
-            var fileInfo = Microsoft.SharePoint.Client.File.OpenBinaryDirect(cxt, fileRef);
-            var fileName = System.IO.Path.Combine(@"D:\SPAssessment", (string)listItem.File.Name);
-            using (var fileStream = System.IO.File.Create(fileName))
-            {
-                fileInfo.Stream.CopyTo(fileStream);
-            }
-
         }
 
 
