@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace UploadFile
 {
-   public class StaticFields
+   public class Statistics
     {
         public string userName = "lokesh.gorle@acuvate.com";
         public string SharePointSiteUrl = "https://acuvatehyd.sharepoint.com/teams/ExampleGratia";

@@ -16,18 +16,18 @@ namespace UploadFile
         static void Main(string[] args)
         {
             Console.WriteLine("Enter your password.");
-            Credentials crd = new Credentials();
-            StaticFields stfld = new StaticFields();
+            Credentials Credential = new Credentials();
+            Statistics Stats = new Statistics();
 
             using (var clientContext = new ClientContext("https://acuvatehyd.sharepoint.com/teams/ExampleGratia"))
             {
-                clientContext.Credentials = new SharePointOnlineCredentials(stfld.userName, crd.password);
+                clientContext.Credentials = new SharePointOnlineCredentials(Stats.userName, Credential.password);
 
 
                 //GetFile(clientContext);
                 //AddFiles(clientContext);
                 //ReadExcelData(clientContext, "SharePointUploadList.xlsx");
-               // ADDFile(clientContext);
+                //ADDFile(clientContext);
 
                 GetExcelFile(clientContext);
                 ReadData(clientContext);
@@ -39,25 +39,50 @@ namespace UploadFile
 
         public static int GetItemId(ClientContext cxt, string ItemName)
         {
-            StaticFields stfld = new StaticFields();
+            Statistics Stats = new Statistics();
 
-            List list = cxt.Web.Lists.GetByTitle(stfld.ExcelDocLibName);
+            List list = cxt.Web.Lists.GetByTitle(Stats.ExcelDocLibName);
             CamlQuery camlQuery = new CamlQuery();
             camlQuery.ViewXml = "<View><Query><Where><Eq><FieldRef Name='FileLeafRef' /><Value Type='Text'>" + ItemName + "</Value></Eq></Where></Query></View>";
             ListItemCollection items = list.GetItems(camlQuery);
             cxt.Load(items);
             cxt.ExecuteQuery();
 
+
             int ItemID = items[0].Id;
             return ItemID;
            // Console.WriteLine("item id of " + title + " is  " + itemid);
         }
+
+
+        //public static int GetLookUpItemId(string ItemName)
+        //{
+        //    DataTable Dept;
+        //    Dept.Select()
+        //    // Console.WriteLine("item id of " + title + " is  " + itemid);
+        //}
+
+        public static int GetLookUpItemId(ClientContext cxt, string ItemName)
+        {
+            Statistics Stats = new Statistics();
+
+            List list = cxt.Web.Lists.GetByTitle("Department");
+            CamlQuery camlQuery = new CamlQuery();
+            camlQuery.ViewXml = "<View><Query><Where><Eq><FieldRef Name='Title' /><Value Type='Text'>" + ItemName + "</Value></Eq></Where></Query></View>";
+            ListItemCollection DeptItems = list.GetItems(camlQuery);
+            cxt.Load(DeptItems);
+            cxt.ExecuteQuery();
+
+            int ItemID = DeptItems[0].Id;
+            return ItemID;
+            // Console.WriteLine("item id of " + title + " is  " + itemid);
+        }
         public static void GetExcelFile(ClientContext cxt)
         {
-            StaticFields stfld = new StaticFields();
+            Statistics Stats = new Statistics();
 
-            var list = cxt.Web.Lists.GetByTitle(stfld.ExcelDocLibName);
-            int DocID = GetItemId(cxt, stfld.ExcelFileName);
+            var list = cxt.Web.Lists.GetByTitle(Stats.ExcelDocLibName);
+            int DocID = GetItemId(cxt, Stats.ExcelFileName);
             var listItem = list.GetItemById(DocID);
             cxt.Load(list);
             cxt.Load(listItem, i => i.File);
@@ -65,7 +90,7 @@ namespace UploadFile
 
             var fileRef = listItem.File.ServerRelativeUrl;
             var fileInfo = Microsoft.SharePoint.Client.File.OpenBinaryDirect(cxt, fileRef);
-            var fileName = System.IO.Path.Combine(stfld.LocalDestinationFolder, stfld.ExcelFileName);// (string)listItem.File.Name);
+            var fileName = System.IO.Path.Combine(Stats.LocalDestinationFolder, Stats.ExcelFileName);// (string)listItem.File.Name);
             using (var fileStream = System.IO.File.Create(fileName))
             {
                 fileInfo.Stream.CopyTo(fileStream);
@@ -75,7 +100,7 @@ namespace UploadFile
 
         public static void ReadData(ClientContext cxt)
         {
-            StaticFields stfld = new StaticFields();
+            Statistics Stats = new Statistics();
 
             Excel.Application xlApp;
             Excel.Workbook xlWorkBook;
@@ -84,7 +109,7 @@ namespace UploadFile
 
 
             xlApp = new Excel.Application();
-            var LocalFilePath = System.IO.Path.Combine(stfld.LocalDestinationFolder, stfld.ExcelFileName);
+            var LocalFilePath = System.IO.Path.Combine(Stats.LocalDestinationFolder, Stats.ExcelFileName);
             xlWorkBook = xlApp.Workbooks.Open(LocalFilePath);//@"D:\SPAssessment\SharePointUploadList.xlsx");
             xlWorkSheet = (Excel.Worksheet)xlWorkBook.Worksheets.get_Item(1);
             //int lastrow = xlWorkSheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell).Row;
@@ -95,15 +120,15 @@ namespace UploadFile
             for (int row = 2; row < 6; row++)
             {
 
-                string FilePath = (range.Cells[row, 1] as Excel.Range).Value2;
+                string FilePath = (range.Cells[row, 1] as Excel.Range).Value2; // Column : FilePath
                 string status = (range.Cells[row, 2] as Excel.Range).Value2;
                 string CreatedBy = (range.Cells[row, 3] as Excel.Range).Value2;
-                AddFilesFromExcel(cxt, FilePath, CreatedBy, status, out Reason);
+                string DeptName = (range.Cells[row, 6] as Excel.Range).Value2;
+                AddFilesFromExcel(cxt, FilePath, CreatedBy, status, DeptName, out Reason);
                 UploadStatus = String.IsNullOrEmpty(Reason) ? "Uploaded" : "Failed";
                 range.Cells[row, 4] = UploadStatus;
                 range.Cells[row, 5] = Reason;
             }
-
 
             xlWorkBook.Save();
             xlWorkBook.Close();
@@ -111,9 +136,9 @@ namespace UploadFile
 
 
         }
-        public static string AddFilesFromExcel(ClientContext cxt, string FilepathString, string CreatedBy, string Status, out string Reason)
+        public static string AddFilesFromExcel(ClientContext cxt, string FilepathString, string CreatedBy, string Status, string DepartmentName,out string Reason)
         {
-            StaticFields stfld = new StaticFields();
+            Statistics Stats = new Statistics();
 
             string[] farr = FilepathString.Split('/');
             //string FilepathString = row[datacolumn].ToString();
@@ -129,14 +154,15 @@ namespace UploadFile
             {
                 try
                 {
-                    List l = cxt.Web.Lists.GetByTitle(stfld.FilesUploadToDocLib); 
+                    int ID = GetLookUpItemId(cxt, DepartmentName);
+                    List l = cxt.Web.Lists.GetByTitle(Stats.FilesUploadToDocLib); 
 
 
 
                      FileCreationInformation fileToUpload = new FileCreationInformation();
                     fileToUpload.Content = System.IO.File.ReadAllBytes(FilepathString);
                     fileToUpload.Overwrite = true;
-                    fileToUpload.Url = stfld.FilesUploadToDocLib + "/" + FileNameForURL;
+                    fileToUpload.Url = Stats.FilesUploadToDocLib + "/" + FileNameForURL;
 
 
 
@@ -146,11 +172,17 @@ namespace UploadFile
 
                     farr = Status.Split(',');
                     ListItem fileitem = uploadfile.ListItemAllFields;
+                    cxt.Load(fileitem);
+                    cxt.ExecuteQuery();
                     fileitem["Title"] = FileNameForURL;
                     fileitem["Multiselectcheck"] = farr;
                     fileitem["FileType"] = fileInfo.Extension;
                     fileitem["CreatedBy"] = CreatedBy;
-                    //fileitem["Dept"] = "HR";
+                    //FieldLookupValue lookup =fileitem["Dept"] as FieldLookupValue;
+                    ///check for look up column by passing only the id.///
+                   
+                    //lookup.LookupId = ID;
+                    fileitem["Dept"] = ID;
                     fileitem.Update();
                     // cxt.Load(item);
 
@@ -174,13 +206,13 @@ namespace UploadFile
         }
         public static void UploadExcelSheet(ClientContext cxt)
         {
-            StaticFields stfld = new StaticFields();
+            Statistics Stats = new Statistics();
 
-            List DestList = cxt.Web.Lists.GetByTitle(stfld.ExcelDocLibName);
+            List DestList = cxt.Web.Lists.GetByTitle(Stats.ExcelDocLibName);
             FileCreationInformation Fci = new FileCreationInformation();
-            Fci.Content = System.IO.File.ReadAllBytes(stfld.LocalDestinationFolder+"/"+stfld.ExcelFileName);
+            Fci.Content = System.IO.File.ReadAllBytes(Stats.LocalDestinationFolder+"/"+Stats.ExcelFileName);
             Fci.Overwrite = true;
-            Fci.Url =stfld.ExcelDocLibName+"/"+stfld.ExcelFileName ;//"LokeshPractice/SharePointUploadList.xlsx";
+            Fci.Url =Stats.ExcelDocLibName+"/"+Stats.ExcelFileName ;//"LokeshPractice/SharePointUploadList.xlsx";
 
             File uploadfile = DestList.RootFolder.Files.Add(Fci);
             uploadfile.Update();

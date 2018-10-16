@@ -11,7 +11,7 @@ namespace ErrorLog
     {
        public static void ErrorlogWrite(Exception ex)
         {
-            string DoubleSpace = "/n/n";
+            string DoubleSpace = "\n\n";
             try
             {
                 string filepath = @"D:\ExceptionDetailsFile";  //Text File Path
@@ -31,19 +31,14 @@ namespace ErrorLog
                 }
                 using (StreamWriter sw = File.AppendText(filepath))
                 {
-                    string error = "Log Written Date:" + " " + DateTime.Now.ToString() +
-                                    DoubleSpace + "Error Line No :" + " " + ErrorlineNo +
-                                    DoubleSpace + "Error Message:" + " " + Errormsg +
-                                    DoubleSpace + "Exception Type:" + " " + extype +
-                                    DoubleSpace + "Error Location :" + " " + ErrorLocation +
-                                    DoubleSpace + " Error Page Url:" + " " + exurl + DoubleSpace
-                                    + "User Host IP:" + " " + hostIp + DoubleSpace;
+                    string error = ex.StackTrace;
                     sw.WriteLine("-----------Exception Details on " + " " + DateTime.Now.ToString() + "-----------------");
                     sw.WriteLine("-------------------------------------------------------------------------------------");
-                    sw.WriteLine(line);
+                    sw.WriteLine(ex.Message);
+                    sw.WriteLine(DoubleSpace);
                     sw.WriteLine(error);
                     sw.WriteLine("--------------------------------*End*------------------------------------------");
-                    sw.WriteLine(line);
+                    sw.WriteLine(DoubleSpace);
                     sw.Flush();
                     sw.Close();
 
@@ -54,3 +49,10 @@ namespace ErrorLog
         }
     }
 }
+//string error = "Log Written Date:" + " " + DateTime.Now.ToString() +
+//                                    DoubleSpace + "Error Line No :" + " " + ErrorlineNo +
+//                                    DoubleSpace + "Error Message:" + " " + Errormsg +
+//                                    DoubleSpace + "Exception Type:" + " " + extype +
+//                                    DoubleSpace + "Error Location :" + " " + ErrorLocation +
+//                                    DoubleSpace + " Error Page Url:" + " " + exurl + DoubleSpace
+//                                    + "User Host IP:" + " " + hostIp + DoubleSpace;
