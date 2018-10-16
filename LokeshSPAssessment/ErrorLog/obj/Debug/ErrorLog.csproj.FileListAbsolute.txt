@@ -1,0 +1,2 @@
+D:\SPTrail\LokeshSPAssessment\ErrorLog\obj\Debug\ErrorLog.csprojAssemblyReference.cache
+D:\SPTrail\LokeshSPAssessment\ErrorLog\obj\Debug\ErrorLog.csproj.CoreCompileInputs.cache

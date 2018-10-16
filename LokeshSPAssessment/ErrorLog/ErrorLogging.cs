@@ -9,11 +9,11 @@ namespace ErrorLog
 {
     public static class ErrorLogging
     {
+        //public static void main() { }
        public static void ErrorlogWrite(Exception ex)
         {
             string DoubleSpace = "\n\n";
-            try
-            {
+           
                 string filepath = @"D:\ExceptionDetailsFile";  //Text File Path
 
                 if (!Directory.Exists(filepath))
@@ -44,15 +44,8 @@ namespace ErrorLog
 
                 }
 
-            }
+            
 
         }
     }
 }
-//string error = "Log Written Date:" + " " + DateTime.Now.ToString() +
-//                                    DoubleSpace + "Error Line No :" + " " + ErrorlineNo +
-//                                    DoubleSpace + "Error Message:" + " " + Errormsg +
-//                                    DoubleSpace + "Exception Type:" + " " + extype +
-//                                    DoubleSpace + "Error Location :" + " " + ErrorLocation +
-//                                    DoubleSpace + " Error Page Url:" + " " + exurl + DoubleSpace
-//                                    + "User Host IP:" + " " + hostIp + DoubleSpace;
